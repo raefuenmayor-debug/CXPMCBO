@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuentas por Pagar Maracaibo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 antialiased">
+
+    <div id="vista-login" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl space-y-6">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 bg-indigo-600 text-white rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-lg">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Cuentas por Pagar Maracaibo</h1>
+                <p class="text-xs text-slate-400 font-bold uppercase tracking-wide">Control de Acceso</p>
+            </div>
+
+            <form onsubmit="ejecutarLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Correo Electrónico</label>
+                    <input type="email" id="login-correo" required placeholder="nombre@empresa.com" class="w-full border border-slate-200 p-3 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/50">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contraseña</label>
+                    <input type="password" id="login-clave" required placeholder="••••••••" class="w-full border border-slate-200 p-3 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/50">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition shadow-xl text-sm">
+                    Ingresar al Sistema
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="vista-supervisor" class="min-h-screen flex flex-col hidden bg-slate-50">
+        <header class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 text-white p-3 rounded-xl"><i class="fa-solid fa-building-columns text-xl"></i></div>
+                <div>
+                    <h1 class="text-xl font-black text-slate-900">Cuentas por Pagar Maracaibo</h1>
+                    <p class="text-xs text-slate-500">Panel Maestro Auditor • Rol: <span id="nombre-supervisor-activo" class="text-indigo-600 font-bold">Supervisor</span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="cambiarSubVistaSupervisor('dashboard')" id="btn-sub-dash" class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700">Dashboard & Monitoreo</button>
+                <button onclick="cambiarSubVistaSupervisor('usuarios')" id="btn-sub-users" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">Estructura & Permisos</button>
+                <button onclick="exportarExcelReal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md flex items-center gap-1.5"><i class="fa-solid fa-file-excel"></i> Exportar Libro Maestro (.xlsx)</button>
+                <button onclick="cerrarSesion()" class="bg-rose-50 text-rose-600 p-2 rounded-xl text-xs font-bold"><i class="fa-solid fa-power-off"></i></button>
+            </div>
+        </header>
+
+        <main id="sub-vista-dashboard" class="flex-1 p-8 max-w-7xl w-full mx-auto space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="bg-white p-5 rounded-2xl border shadow-smflex flex-col justify-between">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Deuda Neta Restante</span>
+                    <h3 class="text-xl font-black text-rose-600 mt-2" id="kpi-total">$ 0,00</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border shadow-sm flex flex-col justify-between">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amortizado FIFO</span>
+                    <h3 class="text-xl font-black text-emerald-600 mt-2" id="kpi-abonado">$ 0,00</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border shadow-sm flex flex-col justify-between">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Facturas Activas</span>
+                    <h3 class="text-xl font-black text-blue-600 mt-2" id="kpi-cantidad">0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border shadow-sm flex flex-col justify-between">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Analistas en Red</span>
+                    <h3 class="text-xl font-black text-slate-800 mt-2" id="kpi-analistas">0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border shadow-sm flex flex-col justify-between">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Supervisores Máster</span>
+                    <h3 class="text-xl font-black text-indigo-600 mt-2" id="kpi-supervisores">0</h3>
+                </div>
+            </div>
+
+            <div class="flex gap-4 border-b text-sm font-bold text-slate-400">
+                <button onclick="cambiarTabDashboardSupervisor('facturas')" id="tab-sup-facturas" class="pb-2 text-indigo-600 border-b-2 border-indigo-600 font-bold">📋 Detalle Global de Contratos y Facturas</button>
+                <button onclick="cambiarTabDashboardSupervisor('pagos')" id="tab-sup-pagos" class="pb-2 font-bold">💰 Libro Diario de Auditoría de Pagos</button>
+            </div>
+
+            <div id="panel-supervisor-facturas" class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <div class="p-6 border-b bg-slate-50/50 flex flex-col space-y-4">
+                    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-900">Monitoreo de Deudas Vivas</h2>
+                        </div>
+                        <div class="flex items-center gap-4 bg-slate-100 p-1 rounded-xl text-xs font-bold w-max border">
+                            <label class="flex items-center gap-1 cursor-pointer px-2 py-1 rounded-lg transition" id="lbl-saldo-todos"><input type="radio" name="filtro-saldo" value="todos" onchange="renderTodoFiltros()"> Ver Todas</label>
+                            <label class="flex items-center gap-1 cursor-pointer px-2 py-1 rounded-lg transition text-rose-600" id="lbl-saldo-con"><input type="radio" name="filtro-saldo" value="con-saldo" checked onchange="renderTodoFiltros()"> Solo con Saldo</label>
+                            <label class="flex items-center gap-1 cursor-pointer px-2 py-1 rounded-lg transition text-emerald-600" id="lbl-saldo-sin"><input type="radio" name="filtro-saldo" value="sin-saldo" onchange="renderTodoFiltros()"> Solo Liquidadas ($0)</label>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2 w-full">
+                        <div class="flex items-center gap-2 bg-white px-3 py-1.5 border rounded-xl shadow-sm">
+                            <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
+                            <input type="text" id="buscador-texto-dashboard" oninput="renderTodoFiltros()" placeholder="Buscar empresa, RIF, factura o contrato..." class="text-[11px] font-medium text-slate-700 bg-transparent focus:outline-none w-full">
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-white px-2.5 py-1.5 border rounded-xl shadow-sm">
+                            <i class="fa-solid fa-user text-slate-400 text-[10px]"></i>
+                            <select id="filtro-analista-dashboard" onchange="renderTodoFiltros()" class="text-[11px] font-bold text-slate-700 focus:outline-none bg-transparent w-full"><option value="todos">🔍 Todos los Analistas</option></select>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-white px-2.5 py-1.5 border rounded-xl shadow-sm">
+                            <i class="fa-solid fa-id-card text-slate-400 text-[10px]"></i>
+                            <select id="filtro-rif-dashboard" onchange="renderTodoFiltros()" class="text-[11px] font-bold text-slate-700 focus:outline-none bg-transparent w-full"><option value="todos">🆔 Todos los RIFs</option></select>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-white px-2.5 py-1.5 border rounded-xl shadow-sm">
+                            <i class="fa-solid fa-building text-slate-400 text-[10px]"></i>
+                            <select id="filtro-empresa-dashboard" onchange="renderTodoFiltros()" class="text-[11px] font-bold text-slate-700 focus:outline-none bg-transparent w-full"><option value="todos">🏢 Todas las Empresas</option></select>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-white px-2.5 py-1.5 border rounded-xl shadow-sm">
+                            <i class="fa-solid fa-building-columns text-slate-400 text-[10px]"></i>
+                            <select id="filtro-ente-dashboard" onchange="renderTodoFiltros()" class="text-[11px] font-bold text-slate-700 focus:outline-none bg-transparent w-full"><option value="todos">🏛️ Todos los Entes</option></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b text-xs font-bold text-slate-400 uppercase bg-slate-50/50">
+                                <th class="p-4 pl-6">RIF / Empresa</th>
+                                <th class="p-4">Objeto del Contrato</th>
+                                <th class="p-4">Analista</th>
+                                <th class="p-4">Nro. Factura</th>
+                                <th class="p-4">Órgano / Ente</th>
+                                <th class="p-4">Monto Orig.</th>
+                                <th class="p-4 text-emerald-600">Abonado</th>
+                                <th class="p-4 text-rose-600">Saldo Neto</th>
+                                <th class="p-4">Vencimiento</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-supervisor-body" class="divide-y text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="panel-supervisor-pagos" class="bg-white rounded-2xl border shadow-sm p-6 hidden space-y-4">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b text-xs font-bold text-slate-400 uppercase bg-slate-50/50">
+                                <th class="p-4 pl-6">Fecha / Hora</th>
+                                <th class="p-4">Empresa / Contrato Beneficiario</th>
+                                <th class="p-4 text-emerald-600">Monto Inyectado ($)</th>
+                                <th class="p-4">Estatus Distribución</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-auditoria-pagos-body" class="divide-y text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-2xl border shadow-sm p-6 space-y-4">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b pb-2"><i class="fa-solid fa-chart-pie text-indigo-500"></i> Clasificación Consolidada por Ente</h3>
+                    <div class="divide-y max-h-60 overflow-y-auto" id="lista-resumen-entes"></div>
+                </div>
+                <div class="bg-white rounded-2xl border shadow-sm p-6 space-y-4">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b pb-2"><i class="fa-solid fa-users-gear text-blue-500"></i> Directorio Institucional de Usuarios</h3>
+                    <div class="divide-y max-h-60 overflow-y-auto" id="lista-directorio-personal"></div>
+                </div>
+            </div>
+        </main>
+
+        <main id="sub-vista-usuarios" class="flex-1 p-8 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 hidden">
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-user-plus text-indigo-600"></i> Registrar Usuario Nuevo</h2>
+                    <form onsubmit="crearUsuarioBBDD(event)" class="space-y-3" id="form-registro-usuario">
+                        <input type="text" id="new-user-name" required placeholder="Nombre Completo" class="w-full border p-3 rounded-xl text-sm focus:outline-none">
+                        <input type="email" id="new-user-email" required placeholder="Correo Electrónico" class="w-full border p-3 rounded-xl text-sm focus:outline-none">
+                        <input type="password" id="new-user-pass" required placeholder="Contraseña" class="w-full border p-3 rounded-xl text-sm focus:outline-none">
+                        <select id="new-user-role" class="w-full bg-slate-50 border p-3 rounded-xl text-sm font-semibold focus:outline-none">
+                            <option value="analista">👤 Analista de Cuentas</option>
+                            <option value="supervisor">👑 Supervisor General</option>
+                        </select>
+                        <button type="submit" id="btn-submit-usuario" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm transition">Dar de Alta en la Nube</button>
+                    </form>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-folder-plus text-blue-600"></i> Registrar Empresa / Contrato</h2>
+                    <form onsubmit="crearEmpresaBBDD(event)" class="space-y-3" id="form-registro-empresa">
+                        <input type="text" id="new-empresa-rif" required placeholder="RIF de la Empresa" class="w-full border p-3 rounded-xl text-xs focus:outline-none bg-slate-50">
+                        <input type="text" id="new-empresa-name" required placeholder="Nombre Comercial de la Empresa" class="w-full border p-3 rounded-xl text-xs focus:outline-none bg-slate-50">
+                        <textarea id="new-empresa-objeto" required rows="2" placeholder="Objeto Específico de la Contratación (Campo de texto libre)" class="w-full border p-3 rounded-xl text-xs focus:outline-none resize-none bg-slate-50"></textarea>
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-sm transition">Guardar Carpeta Contractual</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <div class="p-6 border-b bg-slate-50/50"><h2 class="text-base font-bold text-slate-900">Matriz de Asignación Maracaibo</h2></div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b text-xs font-bold text-slate-400 uppercase bg-slate-50/20">
+                                <th class="p-4 pl-6">RIF / Empresa / Contrato</th>
+                                <th class="p-4">Analista con Acceso Especial</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-asignaciones-body" class="divide-y text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modal-supervisor-auditoria-empresa" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white w-full max-w-2xl rounded-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto shadow-2xl">
+            <div class="flex justify-between items-start border-b pb-3">
+                <div>
+                    <h2 id="sup-modal-nombre" class="text-lg font-black text-slate-900">Ficha de Auditoría Colectiva</h2>
+                    <p class="text-xs text-indigo-600 font-semibold">Trazabilidad en tiempo real de facturas e ingresos FIFO</p>
+                </div>
+                <button onclick="document.getElementById('modal-supervisor-auditoria-empresa').classList.add('hidden')" class="text-slate-400 p-1"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="text-xs font-black text-slate-400 mb-2">Historial de Facturaciones Emitidas</h4>
+                    <div id="sup-modal-listado-facturas" class="space-y-2 overflow-y-auto max-h-64 divide-y pr-1"></div>
+                </div>
+                <div>
+                    <h4 class="text-xs font-black text-slate-400 mb-2">Historial de Amortizaciones (FIFO)</h4>
+                    <div id="sup-modal-listado-pagos" class="space-y-2 overflow-y-auto max-h-64 divide-y pr-1"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="vista-analista" class="min-h-screen flex flex-col hidden bg-slate-100">
+        <header class="bg-slate-900 text-white px-8 py-4 flex justify-between items-center shadow-md">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2.5 rounded-xl text-white"><i class="fa-solid fa-user-tie text-lg"></i></div>
+                <div>
+                    <h1 class="text-lg font-black tracking-tight" id="saludo-analista">Portal de Analista</h1>
+                    <p class="text-xs text-slate-400">Panel de Control de Cuentas Corrientes FIFO por RIF y Contrato</p>
+                </div>
+            </div>
+            <button onclick="cerrarSesion()" class="bg-rose-600/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600 hover:text-white transition flex items-center gap-2"><i class="fa-solid fa-power-off"></i> Cerrar Módulo</button>
+        </header>
+
+        <div class="flex-1 grid grid-cols-1 xl:grid-cols-5 p-6 gap-6 max-w-[1600px] w-full mx-auto">
+            <div class="xl:col-span-2 space-y-3 flex flex-col">
+                <div class="bg-white p-4 rounded-2xl border shadow-sm">
+                    <h2 class="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-2"><i class="fa-solid fa-building-user text-indigo-500"></i> Carpetas Contractuales Asignadas</h2>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[75vh]" id="lista-empresas-analista"></div>
+            </div>
+
+            <div class="xl:col-span-3 bg-white rounded-2xl border shadow-sm p-6 flex flex-col justify-between min-h-[60vh]" id="consola-vacia-analista">
+                <div class="text-center my-auto p-8 text-slate-400">
+                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-2xl text-slate-300"><i class="fa-solid fa-folder-open"></i></div>
+                    <p class="font-bold text-sm">Ninguna carpeta contractual seleccionada</p>
+                </div>
+            </div>
+
+            <div class="xl:col-span-3 bg-white rounded-2xl border shadow-sm p-6 space-y-4 hidden flex-col justify-between" id="consola-activa-analista">
+                <div class="flex justify-between items-start border-b pb-4">
+                    <div>
+                        <span id="desktop-analista-empresa-rif" class="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md"></span>
+                        <h2 id="desktop-analista-empresa-nombre" class="text-xl font-black text-slate-900 mt-1"></h2>
+                        <p id="desktop-analista-empresa-objeto" class="text-xs font-medium text-slate-500 italic mt-0.5"></p>
+                    </div>
+                    <button onclick="exportarExcelAnalistaEmpresa()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl"><i class="fa-solid fa-file-excel"></i> Exportar Historial (.xlsx)</button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="abrirFormularioFlujo('factura')" class="bg-slate-900 text-white text-xs font-bold py-3 rounded-xl"><i class="fa-solid fa-file-invoice-dollar"></i> + Registrar Nueva Obligación (Factura)</button>
+                    <button onclick="abrirFormularioFlujo('pago')" class="bg-emerald-600 text-white text-xs font-bold py-3 rounded-xl"><i class="fa-solid fa-money-bill-transfer"></i> + Inyectar Pago Colectivo (FIFO)</button>
+                </div>
+
+                <div id="box-formulario-flujo" class="bg-slate-50 p-4 rounded-xl border space-y-3 hidden">
+                    <input type="hidden" id="tipo-flujo-activo"><input type="hidden" id="id-edicion-pago-log">
+                    <div id="campos-flujo-factura" class="grid grid-cols-2 gap-3 hidden">
+                        <input type="text" id="flujo-f-num" placeholder="Número de Factura" class="border p-2.5 rounded-xl text-xs bg-white focus:outline-none"><input type="text" id="flujo-f-ente" placeholder="Órgano / Ente Clasificador" class="border p-2.5 rounded-xl text-xs bg-white focus:outline-none"><input type="number" step="0.01" id="flujo-f-monto" placeholder="Monto Facturado ($)" class="border p-2.5 rounded-xl text-xs bg-white focus:outline-none"><input type="date" id="flujo-f-vence" class="border p-2.5 rounded-xl text-xs bg-white focus:outline-none">
+                    </div>
+                    <div id="campos-flujo-pago" class="grid grid-cols-2 gap-3 hidden">
+                        <input type="number" step="0.01" id="flujo-p-monto" placeholder="Monto del Abono ($)" class="border p-3 rounded-xl text-sm bg-white font-black text-emerald-600 focus:outline-none"><input type="date" id="flujo-p-fecha-manual" class="border p-2.5 rounded-xl text-xs bg-white focus:outline-none">
+                    </div>
+                    <div class="flex justify-end gap-2 text-xs font-bold"><button onclick="document.getElementById('box-formulario-flujo').classList.add('hidden')" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl">Cancelar</button><button onclick="procesarGuardadoFlujo()" class="px-6 py-2 bg-indigo-600 text-white rounded-xl shadow-md">Procesar Transacción</button></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 flex-1 overflow-hidden">
+                    <div class="flex flex-col h-[38vh]"><h4 class="text-xs font-black text-slate-400 uppercase mb-2">📋 Historial de Compromisos (Facturas)</h4><div id="panel-tab-facturas" class="space-y-2 overflow-y-auto flex-1"></div></div>
+                    <div class="flex flex-col h-[38vh]"><h4 class="text-xs font-black text-slate-400 uppercase mb-2">💰 Bitácora de Pagos Recibidos</h4><div id="panel-tab-comportamiento" class="space-y-2 overflow-y-auto flex-1"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let baseUsuarios = {}; let baseEmpresas = {}; let baseCuentas = {}; let basePagosLog = {};
+        let usuarioLogueadoId = null; let empresaSeleccionadaIdMóvil = null;
+        let analistaFiltroActivo = "todos"; let rifFiltroActivo = "todos"; let empresaFiltroActivo = "todos"; let enteFiltroActivo = "todos";
+
+        function safeString(val) { return val !== undefined && val !== null ? String(val).trim() : ''; }
+
+        function ejecutarLogin(e) {
+            e.preventDefault();
+            const correoInput = document.getElementById('login-correo').value.trim().toLowerCase();
+            const claveInput = document.getElementById('login-clave').value.trim();
+            if(correoInput === 'admin@maracaibo.com' && claveInput === '123456') { ingresarComoSupervisor("Máster Administrador", "master-id"); return; }
+            let cuentaEncontrada = null; let cuentaId = null;
+            Object.keys(baseUsuarios).forEach(id => {
+                const u = baseUsuarios[id];
+                if(u.correo && u.correo.trim().toLowerCase() === correoInput && String(u.clave).trim() === claveInput) { cuentaEncontrada = u; cuentaId = id; }
+            });
+            if(cuentaEncontrada) {
+                const r = cuentaEncontrada.rol || cuentaEncontrada.role;
+                if(r === 'supervisor') ingresarComoSupervisor(cuentaEncontrada.nombre, cuentaId);
+                else ingresarComoAnalista(cuentaEncontrada.nombre, cuentaId);
+            } else { alert("❌ Credenciales incorrectas."); }
+        }
+
+        function ingresarComoSupervisor(nombre, id) {
+            usuarioLogueadoId = id; document.getElementById('nombre-supervisor-activo').innerText = nombre;
+            document.getElementById('vista-login').classList.add('hidden'); document.getElementById('vista-supervisor').className = 'min-h-screen flex flex-col bg-slate-50';
+            cambiarSubVistaSupervisor('dashboard');
+        }
+
+        function ingresarComoAnalista(nombre, id) {
+            usuarioLogueadoId = id; document.getElementById('saludo-analista').innerText = `¡Hola, ${nombre}!`;
+            document.getElementById('vista-login').classList.add('hidden'); document.getElementById('vista-analista').className = 'min-h-screen flex flex-col bg-slate-100';
+            renderizarTodo();
+        }
+
+        function cerrarSesion() {
+            usuarioLogueadoId = null; empresaSeleccionadaIdMóvil = null;
+            document.getElementById('consola-activa-analista').classList.add('hidden'); document.getElementById('consola-vacia-analista').classList.remove('hidden');
+            document.getElementById('vista-analista').classList.add('hidden'); document.getElementById('vista-supervisor').classList.add('hidden'); document.getElementById('vista-login').classList.remove('hidden');
+        }
+
+        function cambiarSubVistaSupervisor(sub) {
+            document.getElementById('sub-vista-dashboard').classList.toggle('hidden', sub !== 'dashboard');
+            document.getElementById('sub-vista-usuarios').classList.toggle('hidden', sub !== 'usuarios');
+        }
+
+        function cambiarTabDashboardSupervisor(tab) {
+            document.getElementById('panel-supervisor-facturas').classList.toggle('hidden', tab !== 'facturas');
+            document.getElementById('panel-supervisor-pagos').classList.toggle('hidden', tab !== 'pagos');
+            document.getElementById('tab-sup-facturas').className = tab === 'facturas' ? 'pb-2 text-indigo-600 border-b-2 border-indigo-600 font-bold' : 'pb-2 text-slate-400 font-bold';
+            document.getElementById('tab-sup-pagos').className = tab === 'pagos' ? 'pb-2 text-indigo-600 border-b-2 border-indigo-600 font-bold' : 'pb-2 text-slate-400 font-bold';
+        }
+
+        function abrirConsolaEscritorioAnalista(empresaId, nombreEmpresa, rif, objeto) {
+            empresaSeleccionadaIdMóvil = empresaId;
+            document.getElementById('desktop-analista-empresa-nombre').innerText = nombreEmpresa;
+            document.getElementById('desktop-analista-empresa-rif').innerText = rif || 'S/R';
+            document.getElementById('desktop-analista-empresa-objeto').innerText = objeto || 'Sin Objeto';
+            document.getElementById('consola-vacia-analista').classList.add('hidden');
+            document.getElementById('consola-activa-analista').classList.remove('hidden');
+            document.getElementById('consola-activa-analista').classList.add('flex');
+            document.getElementById('box-formulario-flujo').classList.add('hidden');
+            recalcularYConciliacionFIFO(empresaId);
+        }
+
+        function recalcularYConciliacionFIFO(empId) {
+            const facturasOriginales = baseCuentas[empId]; const pagosOriginales = basePagosLog[empId];
+            let arrFacturas = [];
+            if(facturasOriginales) {
+                Object.keys(facturasOriginales).forEach(id => { if(facturasOriginales[id] && facturasOriginales[id].factura !== undefined) arrFacturas.push({ id: id, ...facturasOriginales[id], abonadoCalculado: 0 }); });
+                arrFacturas.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0));
+            }
+            let arrPagos = [];
+            if(pagosOriginales) {
+                Object.keys(pagosOriginales).forEach(id => { arrPagos.push({ id: id, ...pagosOriginales[id] }); });
+                arrPagos.sort((a,b) => new Date(a.fechaFormatoISO || a.fecha) - new Date(b.fechaFormatoISO || b.fecha));
+            }
+
+            arrPagos.forEach(pago => {
+                let bolsaDinero = Number(pago.montoTotal) || 0; let trackingDistribucion = [];
+                for(let i=0; i < arrFacturas.length; i++) {
+                    if(bolsaDinero <= 0) break;
+                    let fact = arrFacturas[i]; let deudaPendiente = Number(fact.monto) - fact.abonadoCalculado;
+                    if(deudaPendiente > 0) {
+                        if(bolsaDinero >= deudaPendiente) { fact.abonadoCalculado += deudaPendiente; bolsaDinero -= deudaPendiente; trackingDistribucion.push({ factura: fact.factura, abonoParcial: deudaPendiente }); }
+                        else { fact.abonadoCalculado += bolsaDinero; trackingDistribucion.push({ factura: fact.factura, abonoParcial: bolsaDinero }); bolsaDinero = 0; }
+                    }
+                }
+                pago.distribucionCalculada = trackingDistribucion;
+            });
+
+            const pF = document.getElementById('panel-tab-facturas'); pF.innerHTML = '';
+            arrFacturas.forEach(f => {
+                const s = Number(f.monto) - f.abonadoCalculado;
+                pF.innerHTML += `
+                    <div class="bg-slate-50 p-3 rounded-xl border flex justify-between items-center text-xs">
+                        <div>
+                            <p class="font-bold text-slate-900">${f.factura || 'S/N'} <span class="text-indigo-600 font-normal">(${f.ente || 'Alcaldia'})</span></p>
+                            <p class="text-slate-400 text-[10px]">Monto: ${formatearMoneda(f.monto)} | Cruzado FIFO: ${formatearMoneda(f.abonadoCalculado)}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-black ${s > 0 ? 'text-rose-600':'text-emerald-600'}">${formatearMoneda(s)}</span>
+                            <button onclick="eliminarObligacionCompleta('${f.id}', '${f.factura || 'S/N'}')" class="text-slate-300 hover:text-rose-600"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    </div>`;
+            });
+            if(arrFacturas.length === 0) pF.innerHTML = '<p class="text-xs text-slate-400 text-center">Sin deudas vigentes.</p>';
+
+            const pC = document.getElementById('panel-tab-comportamiento'); pC.innerHTML = '';
+            arrPagos.forEach(p => {
+                let desgloseHtml = ''; if(p.distribucionCalculada) { p.distribucionCalculada.forEach(d => { desgloseHtml += `<p class="text-[10px] text-slate-500">• Factura <b>${d.factura}</b>: +${formatearMoneda(d.abonoParcial)}</p>`; }); }
+                pC.innerHTML += `
+                    <div class="bg-emerald-50/40 p-3 border rounded-xl text-xs space-y-1">
+                        <div class="flex justify-between font-bold text-emerald-800">
+                            <span>💰 Abono Inyectado</span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-black text-emerald-700 mr-1">${formatearMoneda(p.montoTotal)}</span>
+                                <button onclick="activarEdicionAbono('${p.id}', ${p.montoTotal}, '${p.fechaFormatoISO || ''}')" class="text-indigo-600 text-[11px]"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button onclick="eliminarAbonoGlobal('${p.id}')" class="text-rose-400 text-[11px]"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <span class="text-[9px] text-slate-400 block">Fecha: ${p.fecha}</span>
+                        <div class="pt-1 border-t">${desgloseHtml || '<p class="text-[10px] italic">Saldo flotante</p>'}</div>
+                    </div>`;
+            });
+        }
+
+        function activarEdicionAbono(id, monto, fechaISO) {
+            abrirFormularioFlujo('pago'); document.getElementById('id-edicion-pago-log').value = id; document.getElementById('flujo-p-monto').value = monto;
+            if(fechaISO) document.getElementById('flujo-p-fecha-manual').value = fechaISO;
+        }
+
+        function procesarGuardadoFlujo() {
+            const tipo = document.getElementById('tipo-flujo-activo').value;
+            if(tipo === 'factura') {
+                const payload = {
+                    factura: document.getElementById('flujo-f-num').value.trim(), ente: document.getElementById('flujo-f-ente').value.trim(),
+                    monto: parseFloat(document.getElementById('flujo-f-monto').value) || 0, abonado: 0, vencimiento: document.getElementById('flujo-f-vence').value, timestamp: Date.now()
+                };
+                if(!payload.factura || !payload.ente || payload.monto <= 0 || !payload.vencimiento) { alert("Complete todos los campos."); return; }
+                db.ref('cuentas/' + empresaSeleccionadaIdMóvil).push().set(payload, () => { alert("✅ Indexado."); document.getElementById('box-formulario-flujo').classList.add('hidden'); limpiarCamposFlujo(); });
+            } else if(tipo === 'pago') {
+                const idEdicion = document.getElementById('id-edicion-pago-log').value;
+                const montoAbono = parseFloat(document.getElementById('flujo-p-monto').value) || 0;
+                const fechaManualISO = document.getElementById('flujo-p-fecha-manual').value;
+                if(montoAbono <= 0 || !fechaManualISO) { alert("Datos inválidos."); return; }
+                const partes = fechaManualISO.split('-'); const fechaLegible = `${partes[2]}/${partes[1]}/${partes[0]}`;
+                const payloadPago = { montoTotal: montoAbono, fecha: fechaLegible, fechaFormatoISO: fechaManualISO };
+
+                if(idEdicion === '') {
+                    db.ref('pagosLog/' + empresaSeleccionadaIdMóvil).push().set(payloadPago, () => { alert("🎉 Abono inyectado."); document.getElementById('box-formulario-flujo').classList.add('hidden'); limpiarCamposFlujo(); });
+                } else {
+                    db.ref(`pagosLog/${empresaSeleccionadaIdMóvil}/${idEdicion}`).update(payloadPago, () => { alert("🔄 Modificado."); document.getElementById('box-formulario-flujo').classList.add('hidden'); limpiarCamposFlujo(); });
+                }
+            }
+        }
+
+        function limpiarCamposFlujo() {
+            document.getElementById('flujo-f-num').value = ''; document.getElementById('flujo-f-ente').value = '';
+            document.getElementById('flujo-f-monto').value = ''; document.getElementById('flujo-f-vence').value = '';
+            document.getElementById('flujo-p-monto').value = '';
+        }
+
+        function eliminarObligacionCompleta(id, num) { if(confirm(`¿Borrar Factura ${num}?`)) { db.ref(`cuentas/${empresaSeleccionadaIdMóvil}/${id}`).remove(); } }
+        function eliminarAbonoGlobal(id) { if(confirm("¿Borrar Abono?")) { db.ref(`pagosLog/${empresaSeleccionadaIdMóvil}/${id}`).remove(); } }
+        function actualizarListadoFacturasModal() { if(empresaSeleccionadaIdMóvil) recalcularYConciliacionFIFO(empresaSeleccionadaIdMóvil); }
+
+        function crearUsuarioBBDD(e) {
+            e.preventDefault();
+            const correoInput = document.getElementById('new-user-email').value.trim().toLowerCase();
+            db.ref('usuarios').push().set({ nombre: document.getElementById('new-user-name').value.trim(), correo: correoInput, clave: document.getElementById('new-user-pass').value, rol: document.getElementById('new-user-role').value }, () => { alert("Usuario creado."); document.getElementById('form-registro-usuario').reset(); });
+        }
+
+        function crearEmpresaBBDD(e) {
+            e.preventDefault();
+            db.ref('empresas').push().set({
+                rif: document.getElementById('new-empresa-rif').value.trim().toUpperCase(),
+                nombre: document.getElementById('new-empresa-name').value.trim(),
+                objetoContrato: document.getElementById('new-empresa-objeto').value.trim(),
+                analistaId: "no-assigned"
+            }, () => { alert("🏢 Guardado."); document.getElementById('form-registro-empresa').reset(); });
+        }
+
+        function vincularEmpresaAnalista(empresaId, analistaId) { db.ref('empresas/' + empresaId).update({ analistaId: analistaId }); }
+
+        function actualizarFiltroAnalistasDesplegable() {
+            const selectAnalista = document.getElementById('filtro-analista-dashboard');
+            const selectRif = document.getElementById('filtro-rif-dashboard');
+            const selectEmpresa = document.getElementById('filtro-empresa-dashboard');
+            const selectEnte = document.getElementById('filtro-ente-dashboard');
+            if(!selectAnalista) return;
+
+            const savedAnalista = selectAnalista.value; const savedRif = selectRif ? selectRif.value : "todos";
+            const savedEmpresa = selectEmpresa ? selectEmpresa.value : "todos"; const savedEnte = selectEnte ? selectEnte.value : "todos";
+
+            selectAnalista.innerHTML = '<option value="todos">Analistas</option>';
+            Object.keys(baseUsuarios).forEach(id => { if(baseUsuarios[id].rol === 'analista' || baseUsuarios[id].role === 'analista') selectAnalista.innerHTML += `<option value="${id}">${baseUsuarios[id].nombre}</option>`; });
+            selectAnalista.value = savedAnalista;
+
+            if(selectRif) {
+                selectRif.innerHTML = '<option value="todos">RIFs</option>'; let rifsUnicos = [];
+                Object.keys(baseEmpresas).forEach(id => { if(baseEmpresas[id].rif) rifsUnicos.push(baseEmpresas[id].rif); });
+                rifsUnicos.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                Array.from(new Set(rifsUnicos)).forEach(rif => { selectRif.innerHTML += `<option value="${rif}">${rif}</option>`; }); selectRif.value = savedRif;
+            }
+            if(selectEmpresa) {
+                selectEmpresa.innerHTML = '<option value="todos">Empresas</option>'; let emps = [];
+                Object.keys(baseEmpresas).forEach(id => { if(baseEmpresas[id].nombre) emps.push({ id: id, nombre: baseEmpresas[id].nombre }); });
+                emps.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                emps.forEach(emp => { selectEmpresa.innerHTML += `<option value="${emp.id}">${emp.nombre}</option>`; }); selectEmpresa.value = savedEmpresa;
+            }
+            if(selectEnte) {
+                selectEnte.innerHTML = '<option value="todos">Entes</option>'; let entes = new Set();
+                Object.keys(baseCuentas).forEach(empId => { if(baseCuentas[empId]) { Object.keys(baseCuentas[empId]).forEach(fId => { if(baseCuentas[empId][fId] && baseCuentas[empId][fId].ente) entes.add(baseCuentas[empId][fId].ente); }); } });
+                entes.forEach(ente => { selectEnte.innerHTML += `<option value="${ente}">${ente}</option>`; }); selectEnte.value = savedEnte;
+            }
+        }
+
+        function abrirAuditoriaSupervisorEmpresa(empId, name) {
+            document.getElementById('sup-modal-nombre').innerText = name;
+            const boxFacturas = document.getElementById('sup-modal-listado-facturas');
+            const boxPagos = document.getElementById('sup-modal-listado-pagos');
+            boxFacturas.innerHTML = ''; boxPagos.innerHTML = '';
+            const facturas = baseCuentas[empId];
+            if(facturas) {
+                Object.keys(facturas).forEach(id => {
+                    const f = facturas[id]; if(f && f.factura !== undefined) boxFacturas.innerHTML += `<div class="py-2 text-xs flex justify-between border-b"><span>📄 Factura: <b>${f.factura}</b></span><span>${formatearMoneda(Number(f.monto || 0) - Number(f.abonado || 0))}</span></div>`;
+                });
+            }
+            const pagos = basePagosLog[empId];
+            if(pagos) {
+                Object.keys(pagos).forEach(id => { const p = pagos[id]; boxPagos.innerHTML += `<div class="py-2 text-xs border-b"><span>💰 Amortizado</span><span>${formatearMoneda(p.montoTotal)}</span></div>`; });
+            }
+            document.getElementById('modal-supervisor-auditoria-empresa').classList.remove('hidden');
+        }
+
+        function renderTodoFiltros() { renderizarTodo(); }
+
+        db.ref('usuarios').on('value', snapshot => { baseUsuarios = snapshot.val() || {}; actualizarFiltroAnalistasDesplegable(); renderizarTodo(); });
+        db.ref('empresas').on('value', snapshot => { baseEmpresas = snapshot.val() || {}; actualizarFiltroAnalistasDesplegable(); renderizarTodo(); });
+        db.ref('cuentas').on('value', snapshot => { baseCuentas = snapshot.val() || {}; actualizarFiltroAnalistasDesplegable(); renderizarTodo(); if(empresaSeleccionadaIdMóvil) actualizarListadoFacturasModal(); });
+        db.ref('pagosLog').on('value', snapshot => { basePagosLog = snapshot.val() || {}; renderizarTodo(); if(empresaSeleccionadaIdMóvil) actualizarListadoFacturasModal(); });
+
+        function renderizarTodo() {
+            if(document.getElementById('filtro-analista-dashboard')) analistaFiltroActivo = document.getElementById('filtro-analista-dashboard').value;
+            if(document.getElementById('filtro-rif-dashboard')) rifFiltroActivo = document.getElementById('filtro-rif-dashboard').value;
+            if(document.getElementById('filtro-empresa-dashboard')) empresaFiltroActivo = document.getElementById('filtro-empresa-dashboard').value;
+            if(document.getElementById('filtro-ente-dashboard')) enteFiltroActivo = document.getElementById('filtro-ente-dashboard').value;
+            let textoBuscador = document.getElementById('buscador-texto-dashboard') ? document.getElementById('buscador-texto-dashboard').value.trim().toLowerCase() : '';
+
+            let filtroSaldoRadio = "con-saldo";
+            const radios = document.getElementsByName('filtro-saldo');
+            for(let r of radios) { if(r.checked) filtroSaldoRadio = r.value; }
+
+            let countAnalistas = 0, countSupervisores = 1;
+            Object.keys(baseUsuarios).forEach(id => { const u = baseUsuarios[id]; const r = u.rol || u.role; if(r === 'supervisor') countSupervisores++; if(r === 'analista') countAnalistas++; });
+            if(document.getElementById('kpi-analistas')) document.getElementById('kpi-analistas').innerText = countAnalistas;
+            if(document.getElementById('kpi-supervisores')) document.getElementById('kpi-supervisores').innerText = countSupervisores;
+
+            const tbodyAsignaciones = document.getElementById('tabla-asignaciones-body');
+            if(tbodyAsignaciones) {
+                tbodyAsignaciones.innerHTML = '';
+                Object.keys(baseEmpresas).forEach(empId => {
+                    const empresa = baseEmpresas[empId]; let selectHtml = `<option value="no-assigned">Sin Analista</option>`;
+                    Object.keys(baseUsuarios).forEach(usrId => { const r = baseUsuarios[usrId].rol || baseUsuarios[usrId].role; if(r === 'analista') selectHtml += `<option value="${usrId}" ${empresa.analistaId === usrId ? 'selected':''}>${baseUsuarios[usrId].nombre}</option>`; });
+                    tbodyAsignaciones.innerHTML += `<tr class="border-b text-xs"><td class="p-3"><b>${empresa.nombre}</b></td><td class="p-3"><select onchange="vincularEmpresaAnalista('${empId}', this.value)" class="bg-slate-100 rounded-xl p-1.5">${selectHtml}</select></td></tr>`;
+                });
+            }
+
+            const listaMovil = document.getElementById('lista-empresas-analista');
+            if(listaMovil && usuarioLogueadoId) {
+                listaMovil.innerHTML = '';
+                Object.keys(baseEmpresas).forEach(empId => {
+                    if(baseEmpresas[empId].analistaId === usuarioLogueadoId) {
+                        let totalS = 0; const facturasO = baseCuentas[empId]; const pagosO = basePagosLog[empId];
+                        let sumaF = 0, sumaP = 0;
+                        if(facturasO) Object.keys(facturasO).forEach(id => { if(facturasO[id] && facturasO[id].monto) sumaF += Number(facturasO[id].monto || 0); });
+                        if(pagosO) Object.keys(pagosO).forEach(id => { if(pagosO[id] && pagosO[id].montoTotal) sumaP += Number(pagosO[id].montoTotal || 0); });
+                        totalS = sumaF - sumaP; if(totalS < 0) totalS = 0;
+                        const e = baseEmpresas[empId]; const claseActiva = (empId === empresaSeleccionadaIdMóvil) ? 'border-indigo-600 bg-indigo-50' : 'border-white bg-white';
+                        listaMovil.innerHTML += `<div onclick="abrirConsolaEscritorioAnalista('${empId}', '${e.nombre.replace(/'/g, "\\'")}', '${e.rif || 'S/R'}', '${e.objetoContrato ? e.objetoContrato.replace(/'/g, "\\'") : 'Sin Objeto'}')" class="${claseActiva} border p-4 rounded-xl flex justify-between items-center cursor-pointer"><div class="max-w-[70%]"><h3 class="font-bold text-sm truncate">${e.nombre}</h3><p class="text-xs text-slate-400 truncate">Obj: ${e.objetoContrato || 'Sin definir'}</p></div><span class="text-sm font-black text-rose-600">${formatearMoneda(totalS)}</span></div>`;
+                    }
+                });
+            }
+
+            const tbodySupervisor = document.getElementById('tabla-supervisor-body');
+            if(tbodySupervisor) {
+                tbodySupervisor.innerHTML = ''; let sumaDeudaNeta = 0, sumaAbonos = 0, totalFacturas = 0; let resumenEntes = {};
+
+                Object.keys(baseCuentas).forEach(empId => {
+                    const facturas = baseCuentas[empId]; const pagosO = basePagosLog[empId];
+                    const empresa = baseEmpresas[empId] || { nombre: "Empresa Activa", rif: "S/R", objetoContrato: "Por Definir", analistaId: "no-assigned" };
+                    const analista = baseUsuarios[empresa.analistaId] || { nombre: "Sin asignar" };
+
+                    if(analistaFiltroActivo !== 'todos' && empresa.analistaId !== analistaFiltroActivo) return;
+                    if(rifFiltroActivo !== 'todos' && empresa.rif !== rifFiltroActivo) return;
+                    if(empresaFiltroActivo !== 'todos' && empId !== empresaFiltroActivo) return;
+
+                    let poolFacturas = [];
+                    if(facturas && typeof facturas === 'object') { Object.keys(facturas).forEach(id => { if(facturas[id]) poolFacturas.push({ id: id, ...facturas[id], abonoF: 0 }); }); poolFacturas.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0)); }
+                    let bolsaP = 0; if(pagosO && typeof pagosO === 'object') Object.keys(pagosO).forEach(id => { if(pagosO[id]) bolsaP += Number(pagosO[id].montoTotal || 0); });
+                    poolFacturas.forEach(f => { let fMonto = Number(f.monto) || 0; if(bolsaP > 0) { let diff = fMonto - f.abonoF; if(bolsaP >= diff) { f.abonoF = fMonto; bolsaP -= diff; } else { f.abonoF += bolsaP; bolsaP = 0; } } });
+
+                    poolFacturas.forEach(f => {
+                        let fMonto = Number(f.monto) || 0; const saldoNeto = fMonto - f.abonoF; const nombreEnte = f.ente || 'Alcaldia';
+                        if(enteFiltroActivo !== 'todos' && nombreEnte !== enteFiltroActivo) return;
+                        if(filtroSaldoRadio === 'con-saldo' && saldoNeto <= 0) return;
+                        if(filtroSaldoRadio === 'sin-saldo' && saldoNeto > 0) return;
+
+                        if(textoBuscador !== '') {
+                            if(!safeString(empresa.rif).toLowerCase().includes(textoBuscador) && !safeString(empresa.nombre).toLowerCase().includes(textoBuscador) && !safeString(f.factura).toLowerCase().includes(textoBuscador)) return;
+                        }
+
+                        if(!resumenEntes[nombreEnte]) resumenEntes[nombreEnte] = 0;
+                        resumenEntes[nombreEnte] += saldoNeto; sumaDeudaNeta += saldoNeto; sumaAbonos += f.abonoF; totalFacturas++;
+                        const escId = String(empId).replace(/'/g, "\\'"); const escNombre = safeString(empresa.nombre).replace(/'/g, "\\'");
+
+                        tbodySupervisor.innerHTML += `<tr onclick="abrirAuditoriaSupervisorEmpresa('${escId}', '${escNombre}')" class="hover:bg-indigo-50/60 border-b cursor-pointer text-xs"><td class="p-3 pl-6 font-bold"><span class="text-[9px] font-mono text-indigo-500 bg-indigo-50 px-1 rounded block w-max">${empresa.rif || 'S/R'}</span>${empresa.nombre}</td><td class="p-3">${empresa.objetoContrato || 'Sin Objeto'}</td><td class="p-3 text-slate-500">${analista.nombre || 'Sin asignar'}</td><td class="p-3 font-mono font-bold">${f.factura || 'S/N'}</td><td class="p-3 font-bold bg-slate-50/50">${nombreEnte}</td><td class="p-3 text-slate-400">${formatearMoneda(fMonto)}</td><td class="p-3 text-emerald-600">${formatearMoneda(f.abonoF)}</td><td class="p-3 font-black ${saldoNeto > 0 ? 'text-rose-600':'text-emerald-600'}">${formatearMoneda(saldoNeto)}</td><td class="p-3 text-slate-400">${f.vencimiento || 'S/F'}</td></tr>`;
+                    });
+                });
+                if(document.getElementById('kpi-total')) document.getElementById('kpi-total').innerText = formatearMoneda(sumaDeudaNeta);
+                if(document.getElementById('kpi-abonado')) document.getElementById('kpi-abonado').innerText = formatearMoneda(sumaAbonos);
+                if(document.getElementById('kpi-cantidad')) document.getElementById('kpi-cantidad').innerText = totalFacturas;
+            }
+        }
+
+        function exportarExcelReal() {
+            let balanceGeneral = [];
+            Object.keys(baseCuentas).forEach(empId => {
+                const facturas = baseCuentas[empId]; const empresa = baseEmpresas[empId] || { nombre: "Desconocida", rif: "S/R", objetoContrato: "Sin objeto" };
+                if (facturas) { Object.keys(facturas).forEach(id => { const f = facturas[id]; if (f && f.factura !== undefined) balanceGeneral.push({ "RIF Empresa": empresa.rif, "Empresa": empresa.nombre, "Objeto": empresa.objetoContrato, "Factura": f.factura, "Monto Original ($)": f.monto }); }); }
+            });
+            const libro = XLSX.utils.book_new(); const hoja = XLSX.utils.json_to_sheet(balanceGeneral); XLSX.utils.book_append_sheet(libro, hoja, "Maestro"); XLSX.writeFile(libro, "Cuentas.xlsx");
+        }
+    </script>
+</body>
+</html>
